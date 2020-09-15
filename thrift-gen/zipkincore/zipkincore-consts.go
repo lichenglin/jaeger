@@ -3,12 +3,12 @@
 
 package zipkincore
 
-import(
+import (
 	"bytes"
 	"context"
-	"reflect"
 	"fmt"
 	"github.com/apache/thrift/lib/go/thrift"
+	"reflect"
 )
 
 // (needed to ensure safety because of naive import list construction.)
@@ -37,4 +37,3 @@ const MESSAGE_ADDR = "ma"
 
 func init() {
 }
-

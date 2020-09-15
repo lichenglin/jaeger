@@ -17,16 +17,15 @@ package badger
 import (
 	"expvar"
 	"flag"
+	"github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger/v2/options"
+	"github.com/spf13/viper"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/dgraph-io/badger"
-	"github.com/dgraph-io/badger/options"
-	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
 
 	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
@@ -94,9 +93,9 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
 
-	opts := badger.DefaultOptions
-	opts.TableLoadingMode = options.MemoryMap
-
+	opts := badger.DefaultOptions("")
+	opts.TableLoadingMode = options.FileIO
+	opts.ValueLogLoadingMode = options.FileIO
 	if f.Options.Primary.Ephemeral {
 		opts.SyncWrites = false
 		// Error from TempDir is ignored to satisfy Codecov
@@ -190,16 +189,20 @@ func (f *Factory) Close() error {
 func (f *Factory) maintenance() {
 	maintenanceTicker := time.NewTicker(f.Options.Primary.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
+	f.logger.Info("maintenance start")
 	for {
 		select {
 		case <-f.maintenanceDone:
+			f.logger.Info("maintenanceDone")
 			return
 		case t := <-maintenanceTicker.C:
+			f.logger.Info("maintenanceTicker.C")
 			var err error
 
 			// After there's nothing to clean, the err is raised
 			for err == nil {
-				err = f.store.RunValueLogGC(0.5) // 0.5 is selected to rewrite a file if half of it can be discarded
+				err = f.store.RunValueLogGC(0.7) // 0.5 is selected to rewrite a file if half of it can be discarded
+				f.logger.Info("maintenance trigger")
 			}
 			if err == badger.ErrNoRewrite {
 				f.metrics.LastValueLogCleaned.Update(t.UnixNano())
